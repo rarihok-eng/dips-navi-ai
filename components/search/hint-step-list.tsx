@@ -58,13 +58,13 @@ export function HintStepList({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex shrink-0 items-center gap-1 hover:underline"
-                  title={`${step.sourceUrl ?? "PDF"} P.${step.page} を開く`}
+                  title={`${step.sectionTitle ?? step.manualName ?? "PDF"} P.${step.page} を開く`}
                 >
                   <Badge
                     variant="secondary"
                     className="cursor-pointer px-2 py-0.5 text-xs font-medium text-primary"
                   >
-                    P.{step.page}
+                    {step.displayTitle ?? `P.${step.page}`}
                   </Badge>
                   <ExternalLink className="size-3 text-primary" />
                 </a>

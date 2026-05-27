@@ -1,6 +1,7 @@
 import type { RetrievedChunk } from "@/lib/rag/pinecone";
 import { getDipsOperatorContext } from "@/lib/rag/dips-context";
 import { resolveManualDisplayName } from "@/lib/ingest/manual-names";
+import { resolveSectionTitle } from "@/lib/search/infer-section-title";
 import { dedupeSearchSources } from "@/lib/search/dedupe-sources";
 import type { SearchMaterial, SearchSource } from "@/lib/types/search";
 
@@ -14,7 +15,7 @@ export function buildRagPrompt(query: string, chunks: RetrievedChunk[]): string 
   const context = chunks
     .map(
       (chunk, index) =>
-        `[資料${index + 1}]\nマニュアル名: ${resolveManualDisplayName(chunk.sourceUrl, chunk.manualName)}\nページ: P.${chunk.page}\n本文:\n${chunk.text}`,
+        `[PDF資料${index + 1}（資料${index + 1}）]\nマニュアル名: ${resolveManualDisplayName(chunk.sourceUrl, chunk.manualName)}${chunk.sectionTitle ? `\nセクション: ${chunk.sectionTitle}` : ""}\nページ: P.${chunk.page}\n本文:\n${chunk.text}`,
     )
     .join("\n\n---\n\n");
 
@@ -40,7 +41,7 @@ export function buildRagPrompt(query: string, chunks: RetrievedChunk[]): string 
 7. 「かんたん要約」は必ず以下2行ラベルで書くこと:
    【原因】2〜4文で記載。第1文の冒頭で **未入力・不備・入力ミス・重複** など、具体的な原因種別を明示すること（例: 「主な原因は、追加基準の**未入力**または入力内容の**不備**です。」）。専門用語は括弧で短く説明する。
    【修正場所】1〜2文で、DIPSの画面名・項目名を具体的に（例: 「飛行許可申請画面の追加基準入力欄」）
-   - 根拠ページは【修正場所】行末に \`（資料N P.xx）\` を付ける（PDFリンク用）
+   - 根拠ページは【修正場所】行末に \`（資料N P.xx）\` を付ける（PDFリンク用。資料N = 参照マニュアル抜粋のPDF通し番号）
 8. 「次にやること」は具体的な1アクションを1文で書くこと。
    - 「エラーメッセージを確認してください」だけの抽象的な文は禁止
    - \`（資料N P.xx）\` は付けない（PDFリンクは要約・回答ヒント側で付与）
@@ -48,7 +49,7 @@ export function buildRagPrompt(query: string, chunks: RetrievedChunk[]): string 
 9. エラー・不可・却下・必須・期限など重要事項は、かんたん要約と回答ヒントの両方で明確に書くこと。
 10. 「回答ヒント」の手順は必ず番号付きリスト（1. 2. …）とし、各行末に根拠を付けること: \`（資料N P.xx）\`
    - 例: \`1. DIPSにログインします。（資料1 P.12）\`
-   - 資料N は上記「参照マニュアル抜粋」の [資料N] と一致させること
+   - 資料N は上記「参照マニュアル抜粋」の [PDF資料N] と一致させること（画面では公式PDF名と対応付けて表示される）
    - 手順ごとに主たる根拠ページを1つ指定すること
 11. 質問タイプ別の回答重点:
    - error: 【原因】で未入力・不備・入力ミスを明示 → 【修正場所】で具体的画面・項目 → 次にやることでエラー確認
@@ -78,7 +79,41 @@ ${query}
 ### DIPS補足`;
 }
 
-export function extractSourcesFromChunks(chunks: RetrievedChunk[]): SearchSource[] {
+function pageKey(sourceUrl: string, page: number): string {
+  return `${sourceUrl}#${page}`;
+}
+
+function buildSectionTitleByPage(
+  chunks: RetrievedChunk[],
+  pageTitleCache?: Map<string, string>,
+): Map<string, string> {
+  const titles = new Map<string, string>();
+
+  if (pageTitleCache) {
+    for (const [key, title] of pageTitleCache) {
+      titles.set(key, title);
+    }
+  }
+
+  for (const chunk of chunks) {
+    const title = resolveSectionTitle(chunk.sectionTitle, chunk.text);
+    if (!title) continue;
+
+    const key = pageKey(chunk.sourceUrl, chunk.page);
+    const existing = titles.get(key);
+    if (!existing || title.length > existing.length) {
+      titles.set(key, title);
+    }
+  }
+
+  return titles;
+}
+
+export function extractSourcesFromChunks(
+  chunks: RetrievedChunk[],
+  pageTitleCache?: Map<string, string>,
+): SearchSource[] {
+  const sectionTitleByPage = buildSectionTitleByPage(chunks, pageTitleCache);
   const sorted = [...chunks].sort((a, b) => b.score - a.score);
   const sources: SearchSource[] = sorted.map((chunk) => ({
     manualName: resolveManualDisplayName(chunk.sourceUrl, chunk.manualName),
@@ -86,6 +121,9 @@ export function extractSourcesFromChunks(chunks: RetrievedChunk[]): SearchSource
     page: chunk.page,
     sourceUrl: chunk.sourceUrl,
     excerpt: truncateExcerpt(chunk.text),
+    sectionTitle:
+      sectionTitleByPage.get(pageKey(chunk.sourceUrl, chunk.page)) ??
+      resolveSectionTitle(chunk.sectionTitle, chunk.text),
   }));
 
   return dedupeSearchSources(sources);
@@ -93,11 +131,18 @@ export function extractSourcesFromChunks(chunks: RetrievedChunk[]): SearchSource
 
 export function extractMaterialsFromChunks(
   chunks: RetrievedChunk[],
+  pageTitleCache?: Map<string, string>,
 ): SearchMaterial[] {
+  const sectionTitleByPage = buildSectionTitleByPage(chunks, pageTitleCache);
+
   return chunks.map((chunk, index) => ({
     index: index + 1,
     manualName: resolveManualDisplayName(chunk.sourceUrl, chunk.manualName),
     page: chunk.page,
     sourceUrl: chunk.sourceUrl,
+    manualSlug: chunk.manualSlug,
+    sectionTitle:
+      sectionTitleByPage.get(pageKey(chunk.sourceUrl, chunk.page)) ??
+      resolveSectionTitle(chunk.sectionTitle, chunk.text),
   }));
 }

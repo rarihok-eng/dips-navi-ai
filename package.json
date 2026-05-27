@@ -12,6 +12,7 @@
     "discover:manuals": "tsx scripts/discover-manuals.ts",
     "ingest": "tsx scripts/ingest.ts",
     "ingest:bulk-names": "tsx scripts/ingest.ts --reingest-bulk-names",
+    "rebuild:page-titles": "tsx scripts/rebuild-page-titles.ts",
     "rename:pdfs": "tsx scripts/rename-local-pdfs.ts",
     "cleanup:pdfs": "tsx scripts/rename-local-pdfs.ts --cleanup-only"
   },

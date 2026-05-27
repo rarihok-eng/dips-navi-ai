@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { saveSearchLog } from "@/lib/db/logs";
-import { extractMaterialsFromChunks } from "@/lib/rag/prompt";
+import {
+  resolveCitedPageTitleIndex,
+} from "@/lib/search/resolve-cited-page-titles";
 import { streamManualAnswer } from "@/lib/rag/search";
 
 export const runtime = "nodejs";
@@ -44,9 +46,13 @@ export async function POST(request: Request) {
       let answer = "";
 
       try {
-        const { stream: geminiStream, sources, chunks } =
-          await streamManualAnswer(query);
-        const materials = extractMaterialsFromChunks(chunks);
+        const {
+          stream: geminiStream,
+          sources,
+          chunks,
+          materials,
+          pageTitleCache,
+        } = await streamManualAnswer(query);
 
         controller.enqueue(
           encoder.encode(encodeSse("sources", { sources, materials })),
@@ -58,6 +64,14 @@ export async function POST(request: Request) {
           answer += text;
           controller.enqueue(encoder.encode(encodeSse("token", { text })));
         }
+
+        const pageTitleIndex = await resolveCitedPageTitleIndex(
+          answer,
+          chunks,
+          materials,
+          sources,
+          pageTitleCache,
+        );
 
         const log = await saveSearchLog(userId, {
           query,
@@ -72,6 +86,7 @@ export async function POST(request: Request) {
               answer,
               sources,
               materials,
+              pageTitleIndex,
             }),
           ),
         );

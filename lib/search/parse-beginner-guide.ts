@@ -1,4 +1,6 @@
+import { humanizeMaterialCitations } from "@/lib/search/material-labels";
 import { stripSummaryCitations } from "@/lib/search/resolve-summary-links";
+import type { SearchMaterial, SearchSource } from "@/lib/types/search";
 
 export type BeginnerGuideContent = {
   cause?: string;
@@ -20,8 +22,13 @@ function extractTaggedSection(
   return match?.[1]?.trim() || undefined;
 }
 
-export function parseBeginnerGuide(summary: string): BeginnerGuideContent {
-  const cleaned = stripSummaryCitations(summary);
+export function parseBeginnerGuide(
+  summary: string,
+  materials?: SearchMaterial[],
+  sources?: SearchSource[],
+): BeginnerGuideContent {
+  const humanized = humanizeMaterialCitations(summary, materials, sources);
+  const cleaned = stripSummaryCitations(humanized);
 
   const cause = extractTaggedSection(cleaned, "原因", ["修正場所"]);
   const fixLocation = extractTaggedSection(cleaned, "修正場所", []);

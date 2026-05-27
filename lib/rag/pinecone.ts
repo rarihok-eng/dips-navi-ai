@@ -28,6 +28,7 @@ export type ManualChunkMetadata = {
   sourceUrl: string;
   chunkIndex: number;
   manualSlug: string;
+  sectionTitle?: string;
 };
 
 export type RetrievedChunk = ManualChunkMetadata & {
@@ -102,6 +103,9 @@ export async function queryManualChunks(
       sourceUrl: String(match.metadata!.sourceUrl),
       chunkIndex: Number(match.metadata!.chunkIndex),
       manualSlug: String(match.metadata!.manualSlug),
+      sectionTitle: match.metadata!.sectionTitle
+        ? String(match.metadata!.sectionTitle)
+        : undefined,
       score: match.score ?? 0,
     }));
 }

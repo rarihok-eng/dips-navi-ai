@@ -22,6 +22,9 @@ export default function SearchPage() {
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<SearchSource[]>([]);
   const [materials, setMaterials] = useState<SearchMaterial[]>([]);
+  const [pageTitleIndex, setPageTitleIndex] = useState<Record<string, string>>(
+    {},
+  );
   const [logs, setLogs] = useState<SearchLogItem[]>([]);
   const [selectedLogId, setSelectedLogId] = useState<string>();
   const [loadingLogs, setLoadingLogs] = useState(true);
@@ -60,6 +63,7 @@ export default function SearchPage() {
     setAnswer("");
     setSources([]);
     setMaterials([]);
+    setPageTitleIndex({});
     setSelectedLogId(undefined);
 
     try {
@@ -101,6 +105,7 @@ export default function SearchPage() {
             setAnswer((prev) => prev + (data.text ?? ""));
           } else if (event === "done") {
             setSelectedLogId(data.logId);
+            setPageTitleIndex(data.pageTitleIndex ?? {});
             await loadLogs();
           } else if (event === "error") {
             setAnswer((prev) =>
@@ -127,6 +132,7 @@ export default function SearchPage() {
     setAnswer(log.answer);
     setSources(log.sources);
     setMaterials([]);
+    setPageTitleIndex({});
     setHasSearched(true);
   }
 
@@ -200,6 +206,7 @@ export default function SearchPage() {
                 answer={answer}
                 sources={sources}
                 materials={materials}
+                pageTitleIndex={pageTitleIndex}
                 streaming={searching}
               />
             ) : null}

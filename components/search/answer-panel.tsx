@@ -5,9 +5,8 @@ import { BeginnerGuideCard } from "@/components/search/beginner-guide-card";
 import { EmphasisText } from "@/components/search/emphasis-text";
 import { HintStepList } from "@/components/search/hint-step-list";
 import { QuestionTypeBadge } from "@/components/search/question-type-badge";
+import { ReferencePdfPanel } from "@/components/search/reference-pdf-panel";
 import { ResultHeader } from "@/components/search/result-header";
-import { SourceHighlight } from "@/components/search/source-highlight";
-import { SummaryPdfLinks } from "@/components/search/summary-pdf-links";
 import { SupportFooter } from "@/components/search/support-footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,10 +14,7 @@ import {
   parseAnswer,
 } from "@/lib/search/parse-answer";
 import { parseBeginnerGuide } from "@/lib/search/parse-beginner-guide";
-import {
-  resolveSummaryPdfLinks,
-  stripSummaryCitations,
-} from "@/lib/search/resolve-summary-links";
+import { stripSummaryCitations } from "@/lib/search/resolve-summary-links";
 import type { QuestionType } from "@/lib/types/question-type";
 import type { SearchMaterial, SearchSource } from "@/lib/types/search";
 
@@ -27,6 +23,7 @@ type AnswerPanelProps = {
   answer: string;
   sources: SearchSource[];
   materials?: SearchMaterial[];
+  pageTitleIndex?: Record<string, string>;
   streaming?: boolean;
 };
 
@@ -44,6 +41,7 @@ export function AnswerPanel({
   answer,
   sources,
   materials,
+  pageTitleIndex,
   streaming = false,
 }: AnswerPanelProps) {
   const parsed = useMemo(() => parseAnswer(answer), [answer]);
@@ -61,8 +59,8 @@ export function AnswerPanel({
   }, [parsed.summary, parsed.hint]);
 
   const beginnerGuide = useMemo(
-    () => (summary ? parseBeginnerGuide(summary) : {}),
-    [summary],
+    () => (summary ? parseBeginnerGuide(summary, materials, sources) : {}),
+    [summary, materials, sources],
   );
 
   const displayNextAction = useMemo(
@@ -71,22 +69,9 @@ export function AnswerPanel({
     [parsed.nextAction],
   );
 
-  const linkSourceText = useMemo(
-    () => [summary, parsed.nextAction].filter(Boolean).join("\n"),
-    [summary, parsed.nextAction],
-  );
-
-  const summaryPdfLinks = useMemo(
-    () =>
-      linkSourceText
-        ? resolveSummaryPdfLinks(
-            linkSourceText,
-            sources,
-            materials,
-            parsed.page,
-          )
-        : [],
-    [linkSourceText, sources, materials, parsed.page],
+  const citationText = useMemo(
+    () => [summary, hintText].filter(Boolean).join("\n"),
+    [summary, hintText],
   );
 
   const dipsText = parsed.dipsSupplement;
@@ -125,8 +110,13 @@ export function AnswerPanel({
           />
         ) : null}
 
-        {!streaming && summaryPdfLinks.length > 0 ? (
-          <SummaryPdfLinks links={summaryPdfLinks} />
+        {!streaming && citationText ? (
+          <ReferencePdfPanel
+            citationText={citationText}
+            materials={materials}
+            sources={sources}
+            pageTitleIndex={pageTitleIndex}
+          />
         ) : null}
 
         <Card>
@@ -151,8 +141,6 @@ export function AnswerPanel({
             )}
           </CardContent>
         </Card>
-
-        <SourceHighlight sources={sources} />
 
         {(dipsText || streaming) && (
           <Card className="border-dashed">

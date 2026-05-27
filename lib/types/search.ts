@@ -4,6 +4,7 @@ export type SearchSource = {
   page: number;
   sourceUrl?: string;
   excerpt?: string;
+  sectionTitle?: string;
 };
 
 export type SearchMaterial = {
@@ -11,6 +12,8 @@ export type SearchMaterial = {
   manualName: string;
   page: number;
   sourceUrl?: string;
+  manualSlug?: string;
+  sectionTitle?: string;
 };
 
 export type SearchLogItem = {

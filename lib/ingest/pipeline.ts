@@ -7,6 +7,7 @@ import { chunkPages } from "@/lib/ingest/chunk";
 import { METADATA_TEXT_MAX } from "@/lib/config/models";
 import { DailyQuotaExceededError, embedTexts } from "@/lib/rag/embed";
 import { upsertChunks } from "@/lib/rag/pinecone";
+import { writePageTitles } from "@/lib/ingest/page-title-store";
 import { loadCompletedSlugs, markSlugCompleted } from "@/lib/ingest/progress";
 
 export type IngestProgressEvent =
@@ -60,6 +61,7 @@ export async function ingestManualSources(
       }
 
       const { pages, sectionByPage, stats } = await extractPdfContent(filePath);
+      await writePageTitles(source.manualSlug, sectionByPage);
       console.log(
         `  extract: ${stats.pagesWithText}/${stats.totalPages} pages, ${stats.totalChars.toLocaleString()} chars` +
           (stats.emptyPages > 0 ? `, ${stats.emptyPages} empty (image-only)` : ""),
@@ -86,19 +88,27 @@ export async function ingestManualSources(
         );
 
         await upsertChunks(
-          batch.map((chunk, batchIndex) => ({
-            id: `${source.manualSlug}-p${chunk.page}-c${chunk.chunkIndex}`,
-            values: vectors[batchIndex],
-            metadata: {
-              manualName: displayName,
-              category: source.category,
-              page: chunk.page,
-              text: chunk.text.slice(0, METADATA_TEXT_MAX),
-              sourceUrl: source.pdfUrl,
-              chunkIndex: chunk.chunkIndex,
-              manualSlug: source.manualSlug,
-            },
-          })),
+          batch.map((chunk, batchIndex) => {
+            const pageSectionTitle =
+              sectionByPage.get(chunk.page) ?? chunk.sectionTitle;
+
+            return {
+              id: `${source.manualSlug}-p${chunk.page}-c${chunk.chunkIndex}`,
+              values: vectors[batchIndex],
+              metadata: {
+                manualName: displayName,
+                category: source.category,
+                page: chunk.page,
+                text: chunk.text.slice(0, METADATA_TEXT_MAX),
+                sourceUrl: source.pdfUrl,
+                chunkIndex: chunk.chunkIndex,
+                manualSlug: source.manualSlug,
+                ...(pageSectionTitle
+                  ? { sectionTitle: pageSectionTitle.slice(0, 200) }
+                  : {}),
+              },
+            };
+          }),
         );
 
         console.log(

@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { inferSectionTitleFromPageText } from "@/lib/search/infer-section-title";
 
 const TMP_DIR = path.join(/* turbopackIgnore: true */ process.cwd(), "data", "tmp");
 
@@ -117,10 +118,7 @@ async function extractSectionByPage(pdf: {
         if (!title) continue;
 
         const sectionPath = [...path, title];
-        const sectionLabel =
-          sectionPath.length >= 2
-            ? sectionPath.slice(-2).join(" > ")
-            : title;
+        const sectionLabel = title;
 
         const page = await resolveDestPage(pdf, item.dest);
         if (page !== null) {
@@ -173,6 +171,14 @@ export async function extractPdfContent(filePath: string): Promise<PdfExtractRes
       pagesWithText += 1;
       totalChars += text.length;
       pages.push({ page: pageNumber, text });
+
+      const inferred = inferSectionTitleFromPageText(text);
+      const outlineTitle = sectionByPage.get(pageNumber);
+      if (inferred && /Step/i.test(inferred)) {
+        sectionByPage.set(pageNumber, inferred);
+      } else if (!outlineTitle && inferred) {
+        sectionByPage.set(pageNumber, inferred);
+      }
     }
   }
 

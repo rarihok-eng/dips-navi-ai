@@ -1,3 +1,4 @@
+import { findSectionTitleForPage, formatPdfPageLabel } from "@/lib/search/material-labels";
 import { buildPdfPageUrl } from "@/lib/search/pdf-link";
 import type { SearchMaterial, SearchSource } from "@/lib/types/search";
 
@@ -6,6 +7,9 @@ export type HintStep = {
   text: string;
   materialIndex?: number;
   page?: number;
+  manualName?: string;
+  sectionTitle?: string;
+  displayTitle?: string;
   sourceUrl?: string;
   pdfUrl?: string;
 };
@@ -68,20 +72,35 @@ export function resolveHintStepLinks(
     if (!step.page) return step;
 
     let sourceUrl: string | undefined;
+    let manualName: string | undefined;
 
     if (step.materialIndex && materials?.length) {
       const material = materials.find((m) => m.index === step.materialIndex);
       sourceUrl = material?.sourceUrl;
+      manualName = material?.manualName;
     }
 
     if (!sourceUrl) {
-      sourceUrl = sources.find((s) => s.page === step.page)?.sourceUrl;
+      const fallback = sources.find((s) => s.page === step.page);
+      sourceUrl = fallback?.sourceUrl;
+      manualName = fallback?.manualName;
     }
 
     if (!sourceUrl) return step;
 
+    const sectionTitle = findSectionTitleForPage(step.page, sourceUrl, sources);
+    const label = formatPdfPageLabel({
+      sectionTitle,
+      manualName,
+      page: step.page,
+      maxLength: 20,
+    });
+
     return {
       ...step,
+      manualName,
+      sectionTitle,
+      displayTitle: label.primary,
       sourceUrl,
       pdfUrl: buildPdfPageUrl(sourceUrl, step.page),
     };

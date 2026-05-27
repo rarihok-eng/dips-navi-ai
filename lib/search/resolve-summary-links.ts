@@ -1,18 +1,45 @@
 import { buildPdfPageUrl } from "@/lib/search/pdf-link";
+import {
+  findSectionTitleForPage,
+  formatPdfPageLabel,
+  parseMaterialCitationMatches,
+} from "@/lib/search/material-labels";
 import type { SearchMaterial, SearchSource } from "@/lib/types/search";
 
 export type SummaryPdfLink = {
   page: number;
   manualName: string;
+  sectionTitle?: string;
+  displayTitle: string;
+  displaySubtitle?: string;
   sourceUrl: string;
   pdfUrl: string;
 };
 
-const materialCitationRegex = () => /[（(]資料(\d+)\s+P\.(\d+)[）)]/g;
+const materialCitationRegex = () => /[（(][^）)]*資料(\d+)\s+P\.(\d+)[^）)]*[）)]/g;
 const pageOnlyRegex = () => /P\.(\d+)/g;
 
 function linkKey(sourceUrl: string, page: number): string {
   return `${sourceUrl}#${page}`;
+}
+
+function buildSummaryPdfLink(
+  page: number,
+  sourceUrl: string,
+  manualName: string,
+  sectionTitle: string | undefined,
+): SummaryPdfLink {
+  const label = formatPdfPageLabel({ sectionTitle, manualName, page });
+
+  return {
+    page,
+    manualName,
+    sectionTitle,
+    displayTitle: label.primary,
+    displaySubtitle: label.secondary,
+    sourceUrl,
+    pdfUrl: buildPdfPageUrl(sourceUrl, page),
+  };
 }
 
 function resolveMaterialLink(
@@ -27,15 +54,16 @@ function resolveMaterialLink(
 
   if (!sourceUrl) return null;
 
-  return {
-    page,
-    manualName:
-      material?.manualName ??
-      sources.find((s) => s.sourceUrl === sourceUrl)?.manualName ??
-      "マニュアル",
-    sourceUrl,
-    pdfUrl: buildPdfPageUrl(sourceUrl, page),
-  };
+  const manualName =
+    material?.manualName ??
+    sources.find((s) => s.sourceUrl === sourceUrl)?.manualName ??
+    "マニュアル";
+
+  const sectionTitle =
+    material?.sectionTitle?.trim() ||
+    findSectionTitleForPage(page, sourceUrl, sources);
+
+  return buildSummaryPdfLink(page, sourceUrl, manualName, sectionTitle);
 }
 
 function resolvePageLink(
@@ -48,17 +76,24 @@ function resolvePageLink(
 
   if (!source?.sourceUrl) return null;
 
-  return {
+  const sectionTitle = findSectionTitleForPage(
     page,
-    manualName: source.manualName,
-    sourceUrl: source.sourceUrl,
-    pdfUrl: buildPdfPageUrl(source.sourceUrl, page),
-  };
+    source.sourceUrl,
+    sources,
+  );
+
+  return buildSummaryPdfLink(
+    page,
+    source.sourceUrl,
+    source.manualName,
+    sectionTitle,
+  );
 }
 
 export function stripSummaryCitations(summary: string): string {
   return summary
     .replace(materialCitationRegex(), "")
+    .replace(/`[（(][^`）)]*[）)]`/g, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -82,14 +117,17 @@ export function resolveSummaryPdfLinks(
   };
 
   for (const match of summary.matchAll(materialCitationRegex())) {
-    addLink(
-      resolveMaterialLink(
-        Number.parseInt(match[1], 10),
-        Number.parseInt(match[2], 10),
-        materials,
-        sources,
-      ),
-    );
+    const inner = match[0].slice(1, -1);
+    for (const citation of parseMaterialCitationMatches(inner)) {
+      addLink(
+        resolveMaterialLink(
+          citation.materialIndex,
+          citation.page,
+          materials,
+          sources,
+        ),
+      );
+    }
   }
 
   if (links.length === 0) {
