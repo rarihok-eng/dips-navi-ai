@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Show, UserButton } from "@clerk/nextjs";
+import { SafeSignInButton } from "@/components/auth/safe-sign-in-button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
@@ -20,9 +21,7 @@ export function Navbar() {
             <UserButton />
           </Show>
           <Show when="signed-out">
-            <SignInButton mode="modal">
-              <Button size="sm">ログイン</Button>
-            </SignInButton>
+            <SafeSignInButton size="sm">ログイン</SafeSignInButton>
           </Show>
         </nav>
       </div>

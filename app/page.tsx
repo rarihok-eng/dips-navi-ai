@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Show, SignInButton } from "@clerk/nextjs";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Show } from "@clerk/nextjs";
+import { SafeSignInButton } from "@/components/auth/safe-sign-in-button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -23,9 +24,7 @@ export default function HomePage() {
             </Link>
           </Show>
           <Show when="signed-out">
-            <SignInButton mode="modal">
-              <Button size="lg">ログインして検索へ</Button>
-            </SignInButton>
+            <SafeSignInButton size="lg">ログインして検索へ</SafeSignInButton>
           </Show>
         </div>
       </section>
